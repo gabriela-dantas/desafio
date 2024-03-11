@@ -1,0 +1,10 @@
+pyspark~=3.4.0
+pandas~=2.0.1
+boto3~=1.26.137
+requests~=2.30.0
+python-dateutil~=2.8.2
+pytest~=7.2.0
+SQLAlchemy~=1.4.42
+mdc~=1.2.1
+
+

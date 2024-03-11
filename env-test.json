@@ -1,0 +1,30 @@
+{
+  "MDCotaAPI": {
+    "API_ROOT_PATH": "/",
+    "STAGING_DATABASE": "md_cota",
+    "STAGING_SCHEMA": "stage_raw",
+    "MD_COTA_SCHEMA": "md_cota",
+    "STAGING_HOST": "host.docker.internal",
+    "STAGING_PORT": 5432,
+    "STAGING_USER": "user_test",
+    "STAGING_PASSWORD": "some_password",
+    "BPM_WEBHOOK_URL":  "https://staging.bazardoconsorcio.com.br",
+    "BPM_WEBHOOK_TOKEN": "804fcc40740c2dbb82ad71432f6e08cc15958011ea6c2d7dd83e9f606045a8a1"
+  },
+  "MDCotaBeaReader": {
+    "STAGING_DATABASE": "md-cota",
+    "STAGING_SCHEMA": "stage_raw",
+    "STAGING_HOST": "host.docker.internal",
+    "STAGING_PORT": 5432,
+    "STAGING_USER": "user_test",
+    "STAGING_PASSWORD": "some_password",
+    "BPM_WEBHOOK_URL":  "https://staging.bazardoconsorcio.com.br",
+    "BPM_WEBHOOK_TOKEN": "804fcc40740c2dbb82ad71432f6e08cc15958011ea6c2d7dd83e9f606045a8a1"
+  },
+  "MDCotaBeaReaderInvoke": {
+    "BEEREADER_LAMBDA_NAME": "md-cota-beereader-sandbox"
+  },
+   "MDCotaADMsExtractEmails": {
+     "BUS_NAME": "md-sandbox"
+   }
+}

@@ -1,0 +1,37 @@
+{
+  "santander_webhook_event": {
+    "creation": {
+      "TableName": "tb_md_cota_santander_webhook_event",
+      "KeySchema": [
+        { "AttributeName": "share_id", "KeyType": "HASH" },
+        { "AttributeName": "event_date", "KeyType": "RANGE" }
+      ],
+      "AttributeDefinitions": [
+        { "AttributeName": "share_id", "AttributeType": "S" },
+        { "AttributeName": "event_date", "AttributeType": "S" },
+        { "AttributeName": "event_type", "AttributeType": "S" }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      },
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "gi_event_type_event_date_index",
+          "KeySchema": [
+            { "AttributeName": "event_type", "KeyType": "HASH" },
+            { "AttributeName": "event_date", "KeyType": "RANGE" }
+          ],
+          "Projection": {
+            "ProjectionType": "ALL"
+          },
+          "ProvisionedThroughput": {
+            "ReadCapacityUnits": 1,
+            "WriteCapacityUnits": 1
+          }
+        }
+      ]
+    },
+    "data": []
+  }
+}

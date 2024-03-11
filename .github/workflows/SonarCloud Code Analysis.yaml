@@ -1,0 +1,65 @@
+name: SonarCloud Code Analysis
+on:
+  push:
+jobs:
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8"]
+    steps:
+        #Definindo variáveis de ambiente caso o pipeline esteja rodando para atender um push em homologação.
+        - name: Set environment variables - Staging
+          if: github.BASE_REF != 'main' || github.REF_NAME != 'main'
+          run: |
+            echo "REQUIREMENTS_FILE=requirements.txt" >> $GITHUB_ENV
+
+        #Definindo variáveis de ambiente caso o pipeline esteja rodando para atender um push em produção.
+        - name: Set environment variables - Production
+          if: github.BASE_REF == 'main' || github.REF_NAME == 'main'
+          run: |
+            echo "REQUIREMENTS_FILE=requirements.txt" >> $GITHUB_ENV
+
+        #Realizar checkout do código para montar o pacote.
+        - uses: actions/checkout@v3
+          with:
+            fetch-depth: 0 #Adicionado por indicação de boa prática por parte do SonarCloud.
+
+        - name: Set up Python ${{ matrix.python-version }}
+          uses: actions/setup-python@v4
+          with:
+            python-version: ${{ matrix.python-version }}
+
+        - name: Create Postgres Docker
+          run: |
+            docker-compose up -d
+
+        #Instalar as dependências para que os testes possam ser realizados localmente.
+        - name: Install test dependencies
+          run: |
+            python -m pip install --upgrade pip
+            cd $GITHUB_WORKSPACE/src/
+            if [ -f $REQUIREMENTS_FILE ]; then pip install -r $REQUIREMENTS_FILE; fi
+        #Executar o lint com Flake8. O erro E501 foi ignorado por solicitação do desenvolvedor Joaquim Santos. Aprovado por Stefano.
+        - name: Lint with flake8
+          run: |
+            flake8 src --exit-zero --output-file=./flake8.txt
+
+        #Executar o pytest.
+        - name: Run pytest
+          run: |
+            pytest tests -v --cov --cov-report=xml --cov-report=html
+
+        #Este step foi adicionado para corrigir um erro conhecido do SonarCloud ao analisar outputs de pytest e flake8 realizados no GitHub Actions. https://community.sonarsource.com/t/sonar-on-github-actions-with-python-coverage-source-issue/36057 e https://stackoverflow.com/questions/57220171/sonarqube-client-fails-to-parse-pytest-coverage-results
+        - name: Adjust files for SonarCloud
+          run: |
+            sed -i "s+<source>$GITHUB_WORKSPACE</source>+<source>/github/workspace</source>+g" $GITHUB_WORKSPACE/coverage.xml
+            sed -i "s+$GITHUB_WORKSPACE+/github/workspace+g" $GITHUB_WORKSPACE/flake8.txt
+
+        #Executar o upload dos resultados dos testes para o SonarCloud.
+        - name: SonarCloud Scan
+          uses: SonarSource/sonarcloud-github-action@master
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
