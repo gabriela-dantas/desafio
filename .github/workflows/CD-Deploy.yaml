@@ -22,18 +22,14 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
 
-
-    - name: List Directory Contents
-      run: ls -l $GITHUB_WORKSPACE
-
     - name: Terraform Init
       run: |
-        cd $GITHUB_WORKSPACE
+        cd GITHUB_WORKSPACE/terraform
         terraform init
 
     - name: Terraform Apply
       run: |
-        cd $GITHUB_WORKSPACE
+        cd GITHUB_WORKSPACE/terraform
         terraform apply -auto-approve
 
     - name: Build and Push Docker Image
