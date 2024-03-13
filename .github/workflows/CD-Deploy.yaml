@@ -1,266 +1,38 @@
-name: Deploy
+name: Terraform Deploy
+
 on:
-  pull_request:
-    types:
-      - closed
+  push:
+    branches:
+      - main
+
 jobs:
-  Build-Release:
-    if: github.event.pull_request.merged == true
+  deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9"]
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: sua_regiao
+
     steps:
-      - name: Set environment variables
-        run: |
-          echo "REQUIREMENTS_FILE_API=requirements_api.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_BEEREADER=requirements_beereader.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_BEEREADER_INVOKE=requirements_beereader_invoke.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_ADMS_EXTRACT=requirements_adms_extract.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_CUSTOMER=requirements_cubees_customer.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_QUOTA_CREATION_INVOKE=requirements_quota_creation_invoke.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_SANTANDER_WEBHOOK=requirements_santander_webhook.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_SANTANDER_FLOW=requirements_santander_flow.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_COMPANY_BOND=requirements_company_bond.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_FILE_LIFE_PROOF=requirements_life_proof_link_sender.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_ASSET_PORTFOLIO_EMAILS_SENDING=requirements_asset_portfolio_emails_sending.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_EMAIL_FILE_EXTRACTION=requirements_email_file_extraction.txt" >> $GITHUB_ENV
-          echo "REQUIREMENTS_SFTP_FILE_HANDLER=requirements_sftp_file_handler.txt" >> $GITHUB_ENV
+    - name: Checkout Repository
+      uses: actions/checkout@v2
 
-      - name: Check AWS CLI version
-        run: aws --version
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
 
-      - name: Check environment variables
-        run: |
-          echo $REQUIREMENTS_FILE_API
-          echo $REQUIREMENTS_FILE_BEEREADER
-          echo $REQUIREMENTS_FILE_BEEREADER_INVOKE
-          echo $REQUIREMENTS_FILE_ADMS_EXTRACT
-          echo $REQUIREMENTS_FILE_CUSTOMER
-          echo $REQUIREMENTS_QUOTA_CREATION_INVOKE
-          echo $REQUIREMENTS_FILE_SANTANDER_WEBHOOK
-          echo $REQUIREMENTS_FILE_SANTANDER_FLOW
-          echo $REQUIREMENTS_FILE_COMPANY_BOND
-          echo $REQUIREMENTS_FILE_LIFE_PROOF
-          echo $REQUIREMENTS_ASSET_PORTFOLIO_EMAILS_SENDING
-          echo $REQUIREMENTS_EMAIL_FILE_EXTRACTION
-          echo $REQUIREMENTS_SFTP_FILE_HANDLER
-          echo $GITHUB_BASE_REF
-      - uses: actions/checkout@v3
+    - name: Terraform Init
+      run: terraform init
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
 
-      - name: Install local app dependencies
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          pip install -r $REQUIREMENTS_FILE_API -t ./dependence_api
-          pip install -r $REQUIREMENTS_FILE_BEEREADER -t ./dependence_beereader
-          pip install -r $REQUIREMENTS_FILE_BEEREADER_INVOKE -t ./dependence_beereader_invoke
-          pip install -r $REQUIREMENTS_FILE_ADMS_EXTRACT -t ./dependence_adms_extract
-          pip install -r $REQUIREMENTS_FILE_CUSTOMER -t ./dependence_cubees_customer
-          pip install -r $REQUIREMENTS_FILE_QUOTA_CREATION_INVOKE -t ./dependence_quota_creation_invoke
-          pip install -r $REQUIREMENTS_FILE_SANTANDER_WEBHOOK -t ./dependence_santander_webhook
-          pip install -r $REQUIREMENTS_FILE_SANTANDER_FLOW -t ./dependence_santander_flow
-          pip install -r $REQUIREMENTS_FILE_COMPANY_BOND -t ./dependence_company_bond
-          pip install -r $REQUIREMENTS_FILE_LIFE_PROOF -t ./dependence_life_proof_link_sender
-          pip install -r $REQUIREMENTS_ASSET_PORTFOLIO_EMAILS_SENDING -t ./dependence_asset_portfolio_emails_sending
-          pip install -r $REQUIREMENTS_EMAIL_FILE_EXTRACTION -t ./dependence_email_file_extraction
-          pip install -r $REQUIREMENTS_SFTP_FILE_HANDLER -t ./dependence_sftp_file_handler
+    - name: Build and Push Docker Image
+      run: |
+        docker build -t nome_da_sua_imagem .
+        aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+        docker tag nome_da_sua_imagem:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/seu_repositorio_ecr:latest
+        docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/seu_repositorio_ecr:latest
 
-      - name: Delete unnecessary build files
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          find . -type d -name "__pycache__" -exec rm -rv {} +
-          find . -type d -name ".pytest_cache" -exec rm -rv {} +
-          find . -type d -name "*.dist-info" -exec rm -rv {} +
-
-      - name: Set repository name
-        run: |
-          echo "REPO=${GITHUB_REPOSITORY//bazar-do-consorcio'/'}" >> $GITHUB_ENV
-
-      - name: Zip Artifacts - API
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_api
-          cp -r dependence_api/* api common simple_common deploy_api/
-          cd deploy_api/ && zip -r ../deploy_api.zip .
-
-      - name: Zip Artifacts - Beereader
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_beereader
-          cp -r dependence_beereader/* beereader common simple_common deploy_beereader/
-          rm -rf deploy_beereader/cryptography
-          pip install \
-            --platform manylinux2010_x86_64 \
-            --target=deploy_beereader \
-            --implementation cp \
-            --only-binary=:all: --upgrade cryptography
-          ls deploy_beereader
-          cd deploy_beereader/ && zip -r ../deploy_beereader.zip .
-
-      - name: Zip Artifacts - Beereader Invoke
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_beereader_invoke
-          cp -r dependence_beereader_invoke/* beereader_invoke common simple_common deploy_beereader_invoke/
-          cd deploy_beereader_invoke/ && zip -r ../deploy_beereader_invoke.zip .
-
-      - name: Zip Artifacts - ADMs Extract Emails
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_adms_extracts
-          cp -r dependence_adms_extract/* adms_extract_emails common simple_common deploy_adms_extracts/
-          cd deploy_adms_extracts/ && zip -r ../deploy_adms_extracts.zip .
-
-      - name: Zip Artifacts - Cubees Customer
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_cubees_customer
-          cp -r dependence_cubees_customer/* cubees_customer common simple_common deploy_cubees_customer/
-          cd deploy_cubees_customer/ && zip -r ../deploy_cubees_customer.zip .
-
-      - name: Zip Artifacts - Quota Creation Invoke
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_quota_creation_invoke
-          cp -r dependence_quota_creation_invoke/* quota_creation_invoke common simple_common deploy_quota_creation_invoke/
-          cd deploy_quota_creation_invoke/ && zip -r ../deploy_quota_creation_invoke.zip .
-
-      - name: Zip Artifacts - Santander Webhook
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_santander_webhook
-          cp -r dependence_santander_webhook/* santander_webhook common simple_common deploy_santander_webhook/
-          cd deploy_santander_webhook/ && zip -r ../deploy_santander_webhook.zip .
-
-      - name: Zip Artifacts - Santander Flow
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_santander_flow
-          cp -r dependence_santander_flow/* santander_flow common simple_common deploy_santander_flow/
-          cd deploy_santander_flow/ && zip -r ../deploy_santander_flow.zip .
-
-      - name: Zip Artifacts - Company Bond
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_company_bond
-          cp -r dependence_company_bond/* company_bond common simple_common deploy_company_bond/
-          cd deploy_company_bond/ && zip -r ../deploy_company_bond.zip .
-
-      - name: Zip Artifacts - Life Proof Link Sender
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_life_proof_link_sender
-          cp -r dependence_life_proof_link_sender/* life_proof_link_sender common simple_common deploy_life_proof_link_sender/
-          cd deploy_life_proof_link_sender/ && zip -r ../deploy_life_proof_link_sender.zip .
-
-      - name: Zip Artifacts - asset_portfolio Emails Sending
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_asset_portfolio_emails_sending
-          cp -r dependence_asset_portfolio_emails_sending/* asset_portfolio_emails_sending simple_common deploy_asset_portfolio_emails_sending/
-          cd deploy_asset_portfolio_emails_sending/ && zip -r ../deploy_asset_portfolio_emails_sending.zip .
-
-      - name: Zip Artifacts - Email File Extraction
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_email_file_extraction
-          cp -r dependence_email_file_extraction/* email_file_extraction simple_common deploy_email_file_extraction/
-          cd deploy_email_file_extraction/ && zip -r ../deploy_email_file_extraction.zip .
-
-
-      - name: Zip Artifacts - SFTP File Handler
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          mkdir deploy_sftp_file_handler
-          cp -r dependence_sftp_file_handler/* sftp_file_handler simple_common deploy_sftp_file_handler/
-          cd deploy_sftp_file_handler/ && zip -r ../deploy_sftp_file_handler.zip .     
-
-
-      - name: Configure AWS Credentials - Staging
-        if: github.BASE_REF != 'main' || github.REF_NAME != 'main'
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID_STAGING}}
-          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY_STAGING}}
-          aws-region: us-east-1
-
-      - name: Deploy to AWS - Staging
-        if: github.BASE_REF != 'main' || github.REF_NAME != 'main'
-        env:
-          LAMBDA_API: ${{secrets.LAMBDA_STAGING}}
-          LAMBDA_BEEREADER: ${{secrets.LAMBDA_BEEREADER_STAGING}}
-          LAMBDA_BEEREADER_INVOKE: ${{secrets.LAMBDA_BEEREADER_INVOKE_STAGING}}
-          LAMBDA_ADMS_EXTRACT_EMAILS: ${{secrets.LAMBDA_ADMS_EXTRACT_EMAILS_STAGING}}
-          LAMBDA_CUSTOMER: ${{secrets.LAMBDA_CUSTOMER_STAGING}}
-          LAMBDA_QUOTA_CREATION_INVOKE: ${{secrets.LAMBDA_QUOTA_CREATION_INVOKE_STAGING}}
-          LAMBDA_SANTANDER_WEBHOOK: ${{secrets.LAMBDA_SANTANDER_WEBHOOK_STAGING}}
-          LAMBDA_SANTANDER_FLOW: ${{secrets.LAMBDA_SANTANDER_FLOW_STAGING}}
-          LAMBDA_COMPANY_BOND: ${{secrets.LAMBDA_COMPANY_BOND_STAGING}}
-          LAMBDA_LIFE_PROOF: ${{secrets.LAMBDA_LIFE_PROOF_STAGING}}
-          LAMBDA_ASSET_PORTFOLIO_EMAILS_SENDING: ${{secrets.LAMBDA_ASSET_PORTFOLIO_EMAILS_SENDING_STAGING}}
-          LAMBDA_EMAIL_FILE_EXTRACTION: ${{secrets.LAMBDA_EMAIL_FILE_EXTRACTION_STAGING}}
-          LAMBDA_SFTP_FILE_HANDLER: ${{secrets.LAMBDA_SFTP_FILE_HANDLER_STAGING}}
-          
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          aws lambda update-function-code --function-name=$LAMBDA_API --zip-file=fileb://deploy_api.zip
-          aws lambda update-function-code --function-name=$LAMBDA_BEEREADER --zip-file=fileb://deploy_beereader.zip
-          aws lambda update-function-code --function-name=$LAMBDA_BEEREADER_INVOKE --zip-file=fileb://deploy_beereader_invoke.zip
-          aws lambda update-function-code --function-name=$LAMBDA_ADMS_EXTRACT_EMAILS --zip-file=fileb://deploy_adms_extracts.zip
-          aws lambda update-function-code --function-name=$LAMBDA_CUSTOMER --zip-file=fileb://deploy_cubees_customer.zip
-          aws lambda update-function-code --function-name=$LAMBDA_QUOTA_CREATION_INVOKE --zip-file=fileb://deploy_quota_creation_invoke.zip
-          aws lambda update-function-code --function-name=$LAMBDA_SANTANDER_WEBHOOK --zip-file=fileb://deploy_santander_webhook.zip
-          aws lambda update-function-code --function-name=$LAMBDA_SANTANDER_FLOW --zip-file=fileb://deploy_santander_flow.zip
-          aws lambda update-function-code --function-name=$LAMBDA_COMPANY_BOND --zip-file=fileb://deploy_company_bond.zip
-          aws lambda update-function-code --function-name=$LAMBDA_LIFE_PROOF --zip-file=fileb://deploy_life_proof_link_sender.zip
-          aws lambda update-function-code --function-name=$LAMBDA_ASSET_PORTFOLIO_EMAILS_SENDING --zip-file=fileb://deploy_asset_portfolio_emails_sending.zip
-          aws lambda update-function-code --function-name=$LAMBDA_EMAIL_FILE_EXTRACTION --zip-file=fileb://deploy_email_file_extraction.zip
-          aws lambda update-function-code --function-name=$LAMBDA_SFTP_FILE_HANDLER --zip-file=fileb://deploy_sftp_file_handler.zip
-
-
-      - name: Configure AWS Credentials - Production
-        if: github.BASE_REF == 'main' || github.REF_NAME == 'main'
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
-          aws-region: us-east-1
-
-      - name: Deploy to AWS - Production
-        if: github.BASE_REF == 'main' || github.REF_NAME == 'main'
-        env:
-          LAMBDA_API: ${{secrets.LAMBDA_PROD}}
-          LAMBDA_BEEREADER: ${{secrets.LAMBDA_BEEREADER_PROD}}
-          LAMBDA_BEEREADER_INVOKE: ${{secrets.LAMBDA_BEEREADER_INVOKE_PROD}}
-          LAMBDA_ADMS_EXTRACT_EMAILS: ${{secrets.LAMBDA_ADMS_EXTRACT_EMAILS_PROD}}
-          LAMBDA_CUSTOMER: ${{secrets.LAMBDA_CUSTOMER_PROD}}
-          LAMBDA_QUOTA_CREATION_INVOKE: ${{secrets.LAMBDA_QUOTA_CREATION_INVOKE_PROD}}
-          LAMBDA_SANTANDER_WEBHOOK: ${{secrets.LAMBDA_SANTANDER_WEBHOOK_PROD}}
-          LAMBDA_SANTANDER_FLOW: ${{secrets.LAMBDA_SANTANDER_FLOW_PROD}}
-          LAMBDA_COMPANY_BOND: ${{secrets.LAMBDA_COMPANY_BOND_PROD}}
-          LAMBDA_LIFE_PROOF: ${{secrets.LAMBDA_LIFE_PROOF_PROD}}
-          LAMBDA_ASSET_PORTFOLIO_EMAILS_SENDING: ${{secrets.LAMBDA_ASSET_PORTFOLIO_EMAILS_SENDING_PROD}}
-          LAMBDA_EMAIL_FILE_EXTRACTION: ${{secrets.LAMBDA_EMAIL_FILE_EXTRACTION_PROD}}
-          LAMBDA_SFTP_FILE_HANDLER: ${{secrets.LAMBDA_SFTP_FILE_HANDLER_PROD}}
-        run: |
-          cd $GITHUB_WORKSPACE/src/
-          aws lambda update-function-code --function-name=$LAMBDA_API --zip-file=fileb://deploy_api.zip
-          aws lambda update-function-code --function-name=$LAMBDA_BEEREADER --zip-file=fileb://deploy_beereader.zip
-          aws lambda update-function-code --function-name=$LAMBDA_BEEREADER_INVOKE --zip-file=fileb://deploy_beereader_invoke.zip
-          aws lambda update-function-code --function-name=$LAMBDA_ADMS_EXTRACT_EMAILS --zip-file=fileb://deploy_adms_extracts.zip
-          aws lambda update-function-code --function-name=$LAMBDA_CUSTOMER --zip-file=fileb://deploy_cubees_customer.zip
-          aws lambda update-function-code --function-name=$LAMBDA_QUOTA_CREATION_INVOKE --zip-file=fileb://deploy_quota_creation_invoke.zip
-          aws lambda update-function-code --function-name=$LAMBDA_SANTANDER_WEBHOOK --zip-file=fileb://deploy_santander_webhook.zip
-          aws lambda update-function-code --function-name=$LAMBDA_SANTANDER_FLOW --zip-file=fileb://deploy_santander_flow.zip
-          aws lambda update-function-code --function-name=$LAMBDA_COMPANY_BOND --zip-file=fileb://deploy_company_bond.zip
-          aws lambda update-function-code --function-name=$LAMBDA_LIFE_PROOF --zip-file=fileb://deploy_life_proof_link_sender.zip
-          aws lambda update-function-code --function-name=$LAMBDA_ASSET_PORTFOLIO_EMAILS_SENDING --zip-file=fileb://deploy_asset_portfolio_emails_sending.zip
-          aws lambda update-function-code --function-name=$LAMBDA_EMAIL_FILE_EXTRACTION --zip-file=fileb://deploy_email_file_extraction.zip
-          aws lambda update-function-code --function-name=$LAMBDA_SFTP_FILE_HANDLER --zip-file=fileb://deploy_sftp_file_handler.zip
-
-
+    - name: Deploy Complete
+      run: echo "Deployment Complete"
