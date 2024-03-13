@@ -28,12 +28,12 @@ jobs:
 
     - name: Terraform Init
       run: |
-        cd terraform
+        cd $GITHUB_WORKSPACE
         terraform init
 
     - name: Terraform Apply
       run: |
-        cd terraform
+        cd $GITHUB_WORKSPACE
         terraform apply -auto-approve
 
     - name: Build and Push Docker Image
