@@ -12,7 +12,8 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: sua_regiao
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
     steps:
     - name: Checkout Repository
@@ -22,10 +23,14 @@ jobs:
       uses: hashicorp/setup-terraform@v1
 
     - name: Terraform Init
-      run: terraform init
+      run: |
+        cd $GITHUB_WORKSPACE/terraform
+        terraform init
 
     - name: Terraform Apply
-      run: terraform apply -auto-approve
+      run: |
+        cd $GITHUB_WORKSPACE/terraform
+        terraform apply -auto-approve
 
     - name: Build and Push Docker Image
       run: |
