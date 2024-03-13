@@ -24,11 +24,13 @@ jobs:
 
     - name: Terraform Init
       run: |
+        cd $GITHUB_WORKSPACE
         cd terraform
         terraform init
 
     - name: Terraform Apply
       run: |
+        cd $GITHUB_WORKSPACE
         cd terraform
         terraform apply -auto-approve
 
